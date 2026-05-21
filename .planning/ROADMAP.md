@@ -6,7 +6,7 @@
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
-| 1 | UI Development | 2/4 | In Progress|  |
+| 1 | UI Development | 4/4 | Complete    | 2026-05-21 |
 | 2 | Auth & Foundation | Users can register, log in, and access protected pages | AUTH-01, AUTH-02, AUTH-03, AUTH-04 | 2 accounts exist, login works, session persists |
 | 3 | Room & WebRTC | Two users join room, hear each other live | ROOM-01, ROOM-02, ROOM-03, WEBRTC-01, WEBRTC-02 | Both users in room, audio flows both ways, <500ms latency |
 | 4 | Recording & Download | Record button, local recording, upload, server mix, download | REC-01 through REC-08, DL-01, DL-02 | Red button works, countdown, both record, upload, mix produces one MP3, download works |
@@ -19,11 +19,11 @@
 
 **Mode:** mvp
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 - [x] 01-01-PLAN.md — Walking Skeleton: Next.js scaffold, design tokens, root layout + topbar, all four route shells, minimal LoginView with router.push('/lobby')
 - [x] 01-02-PLAN.md — UI primitives (Button, Field, Avatar), full LoginView (tabs + register with validation), full LobbyView with seats and navigation to /room
-- [ ] 01-03-PLAN.md — RoomView with full six-state machine, RecordButton, MicVisualizer, timer, countdown overlay
-- [ ] 01-04-PLAN.md — DownloadView with placeholder session list and New Session navigation
+- [x] 01-03-PLAN.md — RoomView with full six-state machine, RecordButton, MicVisualizer, timer, countdown overlay
+- [x] 01-04-PLAN.md — DownloadView with placeholder session list and New Session navigation
 
 **Success Criteria:**
 1. `/` redirects to `/login`; topbar renders on every page with brand text "IC Podcast Recorder"
