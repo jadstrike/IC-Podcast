@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-21T13:12:11.302Z"
+last_updated: "2026-05-21T13:14:28.440Z"
 progress:
   total_phases: 4
   completed_phases: 0
@@ -20,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-05-21)
 
 **Core value:** Two people talk and hear each other in-app, press one button to record, get one mixed file.
 
-**Current focus:** Phase 1 — Auth & Foundation
+**Current focus:** Phase 01 — ui-development
 
 ## Phase Status
 
