@@ -1,8 +1,5 @@
-{/* Placeholder — replaced in Plan 03 */}
+import RoomView from '@/components/RoomView'
+
 export default function RoomPage() {
-  return (
-    <div>
-      <h1>Room</h1>
-    </div>
-  )
+  return <RoomView />
 }
