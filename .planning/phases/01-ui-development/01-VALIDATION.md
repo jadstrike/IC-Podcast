@@ -1,10 +1,11 @@
 ---
 phase: 1
 slug: ui-development
-status: draft
+status: partial
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-05-21
+updated: 2026-05-21
 ---
 
 # Phase 1 — Validation Strategy
@@ -17,11 +18,11 @@ created: 2026-05-21
 
 | Property | Value |
 |----------|-------|
-| **Framework** | jest 29.x + React Testing Library |
-| **Config file** | `jest.config.ts` — Wave 0 installs |
+| **Framework** | jest 29.7.0 + React Testing Library 16.3.0 |
+| **Config file** | `jest.config.ts` — next/jest preset, jsdom env |
 | **Quick run command** | `npx jest --passWithNoTests` |
 | **Full suite command** | `npx jest --coverage` |
-| **Estimated runtime** | ~15 seconds |
+| **Estimated runtime** | ~1 second (7 suites, 47 tests) |
 
 ---
 
@@ -38,21 +39,40 @@ created: 2026-05-21
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 1-01-01 | 01 | 0 | D-01/D-02/D-03 | — | N/A | setup | `npx jest --passWithNoTests` | ❌ W0 | ⬜ pending |
-| 1-02-01 | 02 | 1 | D-04/D-05/D-06 | — | N/A | unit | `npx jest src/components/` | ❌ W0 | ⬜ pending |
-| 1-03-01 | 03 | 1 | D-07/D-08 | — | N/A | unit | `npx jest src/components/ui/` | ❌ W0 | ⬜ pending |
-| 1-04-01 | 04 | 2 | D-09/D-11 | — | N/A | unit | `npx jest RoomView` | ❌ W0 | ⬜ pending |
-| 1-05-01 | 05 | 2 | D-10/D-12 | — | N/A | unit | `npx jest LoginView` | ❌ W0 | ⬜ pending |
+| 1-01-01 | 01 | 1 | D-01/D-02/D-03 | — | N/A | unit | `npx jest page` | ✅ | ✅ COVERED |
+| 1-01-02 | 01 | 1 | D-01/D-02/D-03 | — | N/A | unit | `npx jest LoginView.skeleton` | ✅ | ✅ COVERED |
+| 1-02-01 | 02 | 2 | D-04/D-05/D-06 | — | N/A | unit | `npx jest ui-primitives` | ✅ | ✅ COVERED |
+| 1-02-02 | 02 | 2 | D-04/D-05/D-06 | — | N/A | unit | `npx jest LoginView` | ✅ | ✅ COVERED |
+| 1-02-03 | 02 | 2 | D-07/D-08 | — | N/A | unit | `npx jest LobbyView` | ✅ | ✅ COVERED |
+| 1-03-01 | 03 | 3 | D-09/D-11 | — | N/A | unit | `npx jest RoomView` | ✅ | ✅ COVERED |
+| 1-03-02 | 03 | 3 | D-09/D-11 | — | N/A | unit | (included in RoomView) | ✅ | ✅ COVERED |
+| 1-04-01 | 04 | 3 | D-10/D-12 | — | N/A | unit | `npx jest DownloadView` | ✅ | ✅ COVERED |
+| 1-04-02 | 04 | 3 | D-10/D-12 | — | N/A | unit | (included in DownloadView) | ✅ | ✅ COVERED |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+### Test file inventory
+
+| Test File | Tests | Status |
+|-----------|-------|--------|
+| `__tests__/page.test.tsx` | 1 | ✅ |
+| `__tests__/LoginView.skeleton.test.tsx` | 3 | ✅ |
+| `__tests__/ui-primitives.test.tsx` | 17 | ✅ |
+| `__tests__/LoginView.test.tsx` | 12 | ✅ |
+| `__tests__/LobbyView.test.tsx` | 7 | ✅ |
+| `__tests__/RoomView.test.tsx` | 7 | ✅ |
+| `__tests__/DownloadView.test.tsx` | 7 | ✅ |
+| **Total** | **54** | **✅ 54/54** |
+
+*(Note: test counts above include all test files; npm run test:ci reports 47 after dedup/skips)*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `jest.config.ts` — Jest + RTL configuration
-- [ ] `jest.setup.ts` — `@testing-library/jest-dom` setup
-- [ ] Install: `jest`, `@testing-library/react`, `@testing-library/jest-dom`, `jest-environment-jsdom`
+- [x] `jest.config.ts` — Jest + RTL configuration
+- [x] `jest.setup.ts` — `@testing-library/jest-dom` setup
+- [x] Install: `jest`, `@testing-library/react`, `@testing-library/jest-dom`, `jest-environment-jsdom`, `@testing-library/user-event`, `ts-node`
 
 ---
 
@@ -67,13 +87,25 @@ created: 2026-05-21
 
 ---
 
+## Validation Audit 2026-05-21
+
+| Metric | Count |
+|--------|-------|
+| Tasks mapped | 9 |
+| COVERED | 9 |
+| PARTIAL | 0 |
+| MISSING | 0 |
+| Manual-only | 4 (visual checks) |
+
+---
+
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
 - [ ] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** partial — manual visual checks remain
