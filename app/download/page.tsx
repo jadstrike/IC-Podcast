@@ -1,8 +1,5 @@
-{/* Placeholder — replaced in Plan 04 */}
+import DownloadView from '@/components/DownloadView'
+
 export default function DownloadPage() {
-  return (
-    <div>
-      <h1>Download</h1>
-    </div>
-  )
+  return <DownloadView />
 }
