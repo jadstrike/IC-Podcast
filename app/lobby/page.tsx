@@ -1,8 +1,5 @@
-{/* Placeholder — replaced in Plan 02 */}
+import LobbyView from '@/components/LobbyView'
+
 export default function LobbyPage() {
-  return (
-    <div>
-      <h1>Lobby</h1>
-    </div>
-  )
+  return <LobbyView />
 }
