@@ -2,17 +2,40 @@
 
 **Created:** 2026-05-21
 **Mode:** mvp
-**Phases:** 3 | **Requirements:** 19 mapped | All v1 requirements covered
+**Phases:** 4 | **Requirements:** 19 mapped | All v1 requirements covered
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
-| 1 | Auth & Foundation | Users can register, log in, and access protected pages | AUTH-01, AUTH-02, AUTH-03, AUTH-04 | 2 accounts exist, login works, session persists |
-| 2 | Room & WebRTC | Two users join room, hear each other live | ROOM-01, ROOM-02, ROOM-03, WEBRTC-01, WEBRTC-02 | Both users in room, audio flows both ways, <500ms latency |
-| 3 | Recording & Download | Record button, local recording, upload, server mix, download | REC-01 through REC-08, DL-01, DL-02 | Red button works, countdown, both record, upload, mix produces one MP3, download works |
+| 1 | UI Development | App shell, layout, base styling, and component system | UI-ROUTING, UI-LOGIN, UI-REGISTER, UI-LOBBY, UI-ROOM, UI-STATEMACHINE, UI-DOWNLOAD | All four routes (`/login`, `/lobby`, `/room`, `/download`) render with full HTML-prototype parity; client-side validation works; room state machine cycles all six states |
+| 2 | Auth & Foundation | Users can register, log in, and access protected pages | AUTH-01, AUTH-02, AUTH-03, AUTH-04 | 2 accounts exist, login works, session persists |
+| 3 | Room & WebRTC | Two users join room, hear each other live | ROOM-01, ROOM-02, ROOM-03, WEBRTC-01, WEBRTC-02 | Both users in room, audio flows both ways, <500ms latency |
+| 4 | Recording & Download | Record button, local recording, upload, server mix, download | REC-01 through REC-08, DL-01, DL-02 | Red button works, countdown, both record, upload, mix produces one MP3, download works |
 
 ---
 
-### Phase 1: Auth & Foundation
+### Phase 1: UI Development
+
+**Goal:** As a podcast host, I want a fully styled Next.js app where I can sign in, see a lobby, enter a room with a working record/countdown/timer state machine, and view a post-session download list, so that all UI surface is locked in before auth, WebRTC, and recording are wired up.
+
+**Mode:** mvp
+
+**Plans:** 4 plans
+- [ ] 01-01-PLAN.md — Walking Skeleton: Next.js scaffold, design tokens, root layout + topbar, all four route shells, minimal LoginView with router.push('/lobby')
+- [ ] 01-02-PLAN.md — UI primitives (Button, Field, Avatar), full LoginView (tabs + register with validation), full LobbyView with seats and navigation to /room
+- [ ] 01-03-PLAN.md — RoomView with full six-state machine, RecordButton, MicVisualizer, timer, countdown overlay
+- [ ] 01-04-PLAN.md — DownloadView with placeholder session list and New Session navigation
+
+**Success Criteria:**
+1. `/` redirects to `/login`; topbar renders on every page with brand text "IC Podcast Recorder"
+2. Sign in and Create account forms validate client-side and navigate to `/lobby` on success
+3. Lobby shows two seats (one filled, one waiting with dashed empty avatar) and a working "Both joined" button
+4. Room enters countdown -> recording -> uploading -> mixing -> ready states with correct CSS classes applied
+5. Download page lists four placeholder sessions and a "+ New session" action returning to lobby
+6. `npm run build` and `npm run test:ci` succeed
+
+---
+
+### Phase 2: Auth & Foundation
 
 **Goal:** Users can create accounts, log in, and access protected pages. SQLite database, bcrypt auth, cookie sessions.
 
@@ -37,7 +60,7 @@
 
 ---
 
-### Phase 2: Room & WebRTC
+### Phase 3: Room & WebRTC
 
 **Goal:** Two logged-in users join a shared room, see connection status, and hear each other live via peer-to-peer WebRTC audio.
 
@@ -74,7 +97,7 @@
 
 ---
 
-### Phase 3: Recording & Download
+### Phase 4: Recording & Download
 
 **Goal:** Single red record button starts synchronized local recording on both browsers. Stop triggers upload, server mixes into one MP3, both can download.
 
@@ -108,4 +131,4 @@
 
 ---
 
-*Last updated: 2026-05-21 after initialization*
+*Last updated: 2026-05-21 — Phase 1 plans finalized*
