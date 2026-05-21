@@ -5,6 +5,7 @@ import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
 import RecordButton from '@/components/RecordButton'
 import MicVisualizer from '@/components/MicVisualizer'
+import Skeleton from '@/components/ui/Skeleton'
 
 type RoomState = 'idle' | 'countdown' | 'recording' | 'uploading' | 'mixing' | 'ready'
 
@@ -165,7 +166,11 @@ export default function RoomView({
         </div>
 
         <div className="pillar">
-          <div className="timer">{formatTime(seconds)}</div>
+          {(roomState === 'uploading' || roomState === 'mixing') ? (
+            <Skeleton width={100} height={40} className="timer-skel" />
+          ) : (
+            <div className="timer">{formatTime(seconds)}</div>
+          )}
           <RecordButton label={recLabel} onClick={onRecClick} disabled={recDisabled} />
           <div className="state-label">{STATE_LABELS[roomState]}</div>
           <div className="cue">Press record when ready</div>
