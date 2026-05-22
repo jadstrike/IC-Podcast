@@ -142,6 +142,8 @@ export default function RoomView({
 
   const recDisabled = roomState === 'uploading' || roomState === 'mixing' || roomState === 'countdown'
 
+  const panelClass = roomState === 'recording' ? 'panel live' : 'panel muted'
+
   return (
     <div className={outerClass}>
       <div className="room-head">
@@ -158,7 +160,7 @@ export default function RoomView({
       </div>
 
       <div className="room-body">
-        <div className="panel live" id="panel-a">
+        <div className={panelClass} id="panel-a">
           <Avatar initials={user.initials} status="online" size="sm" />
           <div className="nm">{user.name}</div>
           <div className="sub">Local</div>
@@ -176,7 +178,7 @@ export default function RoomView({
           <div className="cue">Press record when ready</div>
         </div>
 
-        <div className="panel live" id="panel-b">
+        <div className={panelClass} id="panel-b">
           <Avatar initials={peer.initials} status="online" size="sm" />
           <div className="nm">{peer.name}</div>
           <div className="sub">Remote</div>
