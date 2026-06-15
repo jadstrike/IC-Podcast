@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { Mp3Encoder } from 'lamejs'
 import { useRouter } from 'next/navigation'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
@@ -17,7 +18,41 @@ function formatTime(s: number): string {
 }
 
 function suggestedFilename(): string {
-  return `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+  return `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.mp3`
+}
+
+function float32ToInt16(buf: Float32Array): Int16Array {
+  const out = new Int16Array(buf.length)
+  for (let i = 0; i < buf.length; i++) {
+    const s = Math.max(-1, Math.min(1, buf[i]))
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+  }
+  return out
+}
+
+async function encodeMp3(rawBlob: Blob): Promise<Blob> {
+  const arrayBuffer = await rawBlob.arrayBuffer()
+  const audioCtx = new AudioContext()
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+  await audioCtx.close()
+
+  const channels = audioBuffer.numberOfChannels
+  const sampleRate = audioBuffer.sampleRate
+  const encoder = new Mp3Encoder(channels, sampleRate, 128)
+
+  const left = float32ToInt16(audioBuffer.getChannelData(0))
+  const right = channels > 1 ? float32ToInt16(audioBuffer.getChannelData(1)) : left
+
+  const mp3Parts: Int8Array[] = []
+  const BLOCK = 1152
+  for (let i = 0; i < left.length; i += BLOCK) {
+    const chunk = encoder.encodeBuffer(left.subarray(i, i + BLOCK), right.subarray(i, i + BLOCK))
+    if (chunk.length > 0) mp3Parts.push(chunk)
+  }
+  const tail = encoder.flush()
+  if (tail.length > 0) mp3Parts.push(tail)
+
+  return new Blob(mp3Parts.map(p => p.buffer as ArrayBuffer), { type: 'audio/mpeg' })
 }
 
 const STATE_LABELS: Record<RoomState, string> = {
@@ -124,16 +159,18 @@ export default function RoomView({
     }
 
     mr.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+      const rawBlob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
 
       try {
+        const mp3Blob = await encodeMp3(rawBlob)
+
         if (fileHandleRef.current) {
           const writable = await fileHandleRef.current.createWritable()
-          await writable.write(blob)
+          await writable.write(mp3Blob)
           await writable.close()
         } else {
           // Fallback for browsers without File System Access API
-          const url = URL.createObjectURL(blob)
+          const url = URL.createObjectURL(mp3Blob)
           const a = document.createElement('a')
           a.href = url
           a.download = suggestedFilename()
@@ -179,7 +216,7 @@ export default function RoomView({
         try {
           const handle = await (window as Window & { showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
             suggestedName: suggestedFilename(),
-            types: [{ description: 'Audio Recording', accept: { 'audio/webm': ['.webm'] } }],
+            types: [{ description: 'MP3 Audio', accept: { 'audio/mpeg': ['.mp3'] } }],
           })
           fileHandleRef.current = handle
         } catch {
