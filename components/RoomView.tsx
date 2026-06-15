@@ -53,6 +53,7 @@ export default function RoomView({
   const [seconds, setSeconds] = useState(0)
   const [cdNum, setCdNum] = useState('3')
   const [cdKey, setCdKey] = useState(0)
+  const [liveStream, setLiveStream] = useState<MediaStream | null>(null)
 
   const cdTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -146,6 +147,7 @@ export default function RoomView({
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
       mediaRecorderRef.current = null
+      setLiveStream(null)
       setRoomState('ready')
     }
 
@@ -166,6 +168,7 @@ export default function RoomView({
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true })
         streamRef.current = stream
+        setLiveStream(stream)
       } catch {
         alert('Microphone access is required to record. Please allow microphone access and try again.')
         return
@@ -183,6 +186,7 @@ export default function RoomView({
           // User dismissed the save dialog — cancel recording
           stream.getTracks().forEach(t => t.stop())
           streamRef.current = null
+          setLiveStream(null)
           return
         }
       } else {
@@ -240,7 +244,7 @@ export default function RoomView({
           <Avatar initials={user.initials} status="online" size="sm" />
           <div className="nm">{user.name}</div>
           <div className="sub">Local</div>
-          <MicVisualizer count={36} />
+          <MicVisualizer count={36} stream={liveStream} />
         </div>
 
         <div className="pillar">
