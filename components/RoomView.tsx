@@ -1,14 +1,18 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { Mp3Encoder } from 'lamejs'
 import { useRouter } from 'next/navigation'
+import { getSupabase } from '@/lib/supabase'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
 import RecordButton from '@/components/RecordButton'
 import MicVisualizer from '@/components/MicVisualizer'
 import Skeleton from '@/components/ui/Skeleton'
 
-type RoomState = 'idle' | 'countdown' | 'recording' | 'saving' | 'ready'
+type RoomState = 'idle' | 'waiting' | 'countdown' | 'recording' | 'saving' | 'ready'
+
+type PresencePayload = { peerId: string; ready: boolean }
 
 function formatTime(s: number): string {
   const h = String(Math.floor(s / 3600)).padStart(2, '0')
@@ -57,6 +61,7 @@ async function encodeMp3(rawBlob: Blob): Promise<Blob> {
 
 const STATE_LABELS: Record<RoomState, string> = {
   idle: 'Idle',
+  waiting: 'Waiting',
   countdown: 'Get ready',
   recording: 'Recording',
   saving: 'Saving',
@@ -65,6 +70,7 @@ const STATE_LABELS: Record<RoomState, string> = {
 
 const STATUS_LINE_TEXT: Record<RoomState, string> = {
   idle: 'Idle',
+  waiting: 'Waiting for peer to be ready…',
   countdown: 'Counting down…',
   recording: 'Recording…',
   saving: 'Saving recording…',
@@ -75,7 +81,6 @@ interface RoomViewProps {
   user?: { name: string; initials: string }
   peer?: { name: string; initials: string }
   roomCode?: string
-  peerStatus?: 'waiting' | 'connected'
 }
 
 export default function RoomView({
@@ -89,6 +94,7 @@ export default function RoomView({
   const [cdNum, setCdNum] = useState('3')
   const [cdKey, setCdKey] = useState(0)
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null)
+  const [peerReady, setPeerReady] = useState(false)
 
   const cdTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -96,6 +102,14 @@ export default function RoomView({
   const chunksRef = useRef<Blob[]>([])
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+
+  // Presence refs — stable across renders, no stale closure risk
+  const localPeerIdRef = useRef(crypto.randomUUID())
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  const localReadyRef = useRef(false)
+  const countdownStartedRef = useRef(false)
+  // "latest ref" pattern so the presence handler always calls the current runCountdown
+  const runCountdownRef = useRef<() => void>(() => {})
 
   function clearAllTimers() {
     if (tickIntervalRef.current !== null) {
@@ -108,9 +122,7 @@ export default function RoomView({
 
   function startTick() {
     setSeconds(0)
-    tickIntervalRef.current = setInterval(() => {
-      setSeconds(s => s + 1)
-    }, 1000)
+    tickIntervalRef.current = setInterval(() => setSeconds(s => s + 1), 1000)
   }
 
   function startMediaRecorder() {
@@ -118,9 +130,7 @@ export default function RoomView({
     if (!stream) return
     chunksRef.current = []
     const mr = new MediaRecorder(stream)
-    mr.ondataavailable = e => {
-      if (e.data.size > 0) chunksRef.current.push(e.data)
-    }
+    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
     mr.start(100)
     mediaRecorderRef.current = mr
   }
@@ -148,28 +158,74 @@ export default function RoomView({
     })
   }
 
+  // Keep the ref pointing at the latest runCountdown (no deps = runs every render, cheap)
+  useEffect(() => { runCountdownRef.current = runCountdown })
+
+  // Subscribe to presence for this room
+  useEffect(() => {
+    const sb = getSupabase()
+    if (!sb) return // no Supabase config: solo mode, recording starts immediately on click
+
+    const channel = sb.channel(`room:${roomCode}`, {
+      config: { presence: { key: localPeerIdRef.current } },
+    })
+
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState<PresencePayload>()
+      const others = Object.entries(state)
+        .filter(([key]) => key !== localPeerIdRef.current)
+        .map(([, [payload]]) => payload)
+
+      setPeerReady(others.some(u => u?.ready))
+
+      if (
+        localReadyRef.current &&
+        !countdownStartedRef.current &&
+        others.length > 0 &&
+        others.every(u => u?.ready)
+      ) {
+        countdownStartedRef.current = true
+        runCountdownRef.current()
+      }
+    })
+
+    channel.subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ peerId: localPeerIdRef.current, ready: false })
+      }
+    })
+
+    channelRef.current = channel
+    return () => { sb.removeChannel(channel); channelRef.current = null }
+  }, [roomCode])
+
+  // Reset presence flags when the user resets to idle
+  useEffect(() => {
+    if (roomState === 'idle') {
+      localReadyRef.current = false
+      countdownStartedRef.current = false
+      channelRef.current
+        ?.track({ peerId: localPeerIdRef.current, ready: false })
+        .catch(() => {})
+    }
+  }, [roomState])
+
   function stopAndSave() {
     clearAllTimers()
     setRoomState('saving')
 
     const mr = mediaRecorderRef.current
-    if (!mr) {
-      setRoomState('ready')
-      return
-    }
+    if (!mr) { setRoomState('ready'); return }
 
     mr.onstop = async () => {
       const rawBlob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
-
       try {
         const mp3Blob = await encodeMp3(rawBlob)
-
         if (fileHandleRef.current) {
           const writable = await fileHandleRef.current.createWritable()
           await writable.write(mp3Blob)
           await writable.close()
         } else {
-          // Fallback for browsers without File System Access API
           const url = URL.createObjectURL(mp3Blob)
           const a = document.createElement('a')
           a.href = url
@@ -180,7 +236,6 @@ export default function RoomView({
       } catch (err) {
         console.error('Failed to save recording:', err)
       }
-
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
       mediaRecorderRef.current = null
@@ -200,7 +255,7 @@ export default function RoomView({
         return
       }
 
-      // Request microphone access
+      // Mic permission — must come from user gesture before async chain breaks it
       let stream: MediaStream
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -211,16 +266,17 @@ export default function RoomView({
         return
       }
 
-      // Ask where to save (File System Access API — Chrome/Edge; others get auto-download)
+      // File save location
       if ('showSaveFilePicker' in window) {
         try {
-          const handle = await (window as Window & { showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+          const handle = await (window as Window & {
+            showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle>
+          }).showSaveFilePicker({
             suggestedName: suggestedFilename(),
             types: [{ description: 'MP3 Audio', accept: { 'audio/mpeg': ['.mp3'] } }],
           })
           fileHandleRef.current = handle
         } catch {
-          // User dismissed the save dialog — cancel recording
           stream.getTracks().forEach(t => t.stop())
           streamRef.current = null
           setLiveStream(null)
@@ -230,11 +286,34 @@ export default function RoomView({
         fileHandleRef.current = null
       }
 
-      runCountdown()
+      const channel = channelRef.current
+      if (!channel) {
+        // No Supabase — solo mode, start immediately
+        runCountdown()
+        return
+      }
+
+      // Signal ready and check if peer is already waiting
+      localReadyRef.current = true
+      await channel.track({ peerId: localPeerIdRef.current, ready: true })
+
+      const state = channel.presenceState<PresencePayload>()
+      const others = Object.entries(state)
+        .filter(([key]) => key !== localPeerIdRef.current)
+        .map(([, [payload]]) => payload)
+
+      if (others.length > 0 && others.every(u => u?.ready)) {
+        // Peer was already waiting — kick off immediately
+        countdownStartedRef.current = true
+        runCountdown()
+      } else {
+        setRoomState('waiting')
+      }
+
     } else if (roomState === 'recording') {
       stopAndSave()
     }
-    // no-op for countdown, saving
+    // no-op for waiting, countdown, saving
   }
 
   useEffect(() => {
@@ -255,11 +334,16 @@ export default function RoomView({
   const recLabel =
     roomState === 'recording' ? 'Stop' :
     roomState === 'saving' ? 'Saving' :
+    roomState === 'waiting' ? 'Waiting…' :
     'Start Recording'
 
-  const recDisabled = roomState === 'saving' || roomState === 'countdown'
+  const recDisabled = roomState === 'saving' || roomState === 'countdown' || roomState === 'waiting'
 
   const panelClass = roomState === 'recording' ? 'panel live' : 'panel muted'
+
+  const cueText = roomState === 'waiting'
+    ? `Waiting for ${peer.name} to be ready`
+    : 'Press record when ready'
 
   return (
     <div className={outerClass}>
@@ -292,13 +376,13 @@ export default function RoomView({
           )}
           <RecordButton label={recLabel} onClick={onRecClick} disabled={recDisabled} />
           <div className="state-label">{STATE_LABELS[roomState]}</div>
-          <div className="cue">Press record when ready</div>
+          <div className="cue">{cueText}</div>
         </div>
 
         <div className={panelClass} id="panel-b">
           <Avatar initials={peer.initials} status="online" size="sm" />
           <div className="nm">{peer.name}</div>
-          <div className="sub">Remote</div>
+          <div className="sub">{peerReady ? 'Ready' : 'Remote'}</div>
           <MicVisualizer count={36} />
         </div>
       </div>
