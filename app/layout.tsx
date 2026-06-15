@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import { AuthProvider } from '@/lib/AuthContext'
+import TopBar from '@/components/TopBar'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,21 +23,14 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <div className="frame">
-          <header className="topbar">
-            <div className="brand">
-              <span>IC Podcast Recorder</span>
-            </div>
-            {/* topbar-right: hidden by default in Phase 1; Phase 2 wires session */}
-            <div className="topbar-right" style={{ display: 'none' }}>
-              <span className="user-name"></span>
-              <span className="sign-out">Sign out</span>
-            </div>
-          </header>
-          <main className="stage">
-            {children}
-          </main>
-        </div>
+        <AuthProvider>
+          <div className="frame">
+            <TopBar />
+            <main className="stage">
+              {children}
+            </main>
+          </div>
+        </AuthProvider>
       </body>
     </html>
   )

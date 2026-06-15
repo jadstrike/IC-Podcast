@@ -8,6 +8,15 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
+jest.mock('@/lib/supabase', () => ({
+  getSupabase: () => ({
+    auth: {
+      signInWithPassword: jest.fn().mockResolvedValue({ error: null }),
+      signUp: jest.fn().mockResolvedValue({ error: null }),
+    },
+  }),
+}))
+
 beforeEach(() => {
   pushMock.mockClear()
 })
@@ -33,8 +42,6 @@ describe('LoginView register flow', () => {
     const user = userEvent.setup()
     render(<LoginView />)
     await user.click(screen.getByText('Create account'))
-    const inputs = screen.getAllByRole('textbox')
-    // name, email, and potentially others - fill name first
     const nameInput = screen.getByLabelText(/name/i)
     const emailInput = screen.getAllByLabelText(/email/i)[0]
     await user.type(nameInput, 'John')

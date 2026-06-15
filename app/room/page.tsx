@@ -1,5 +1,10 @@
 import RoomView from '@/components/RoomView'
+import AuthGuard from '@/components/AuthGuard'
 
 export default function RoomPage() {
-  return <RoomView />
+  return (
+    <AuthGuard>
+      <RoomView />
+    </AuthGuard>
+  )
 }
