@@ -7,7 +7,7 @@ import RecordButton from '@/components/RecordButton'
 import MicVisualizer from '@/components/MicVisualizer'
 import Skeleton from '@/components/ui/Skeleton'
 
-type RoomState = 'idle' | 'countdown' | 'recording' | 'uploading' | 'mixing' | 'ready'
+type RoomState = 'idle' | 'countdown' | 'recording' | 'saving' | 'ready'
 
 function formatTime(s: number): string {
   const h = String(Math.floor(s / 3600)).padStart(2, '0')
@@ -16,22 +16,24 @@ function formatTime(s: number): string {
   return `${h}:${m}:${sec}`
 }
 
+function suggestedFilename(): string {
+  return `recording-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`
+}
+
 const STATE_LABELS: Record<RoomState, string> = {
   idle: 'Idle',
   countdown: 'Get ready',
   recording: 'Recording',
-  uploading: 'Uploading',
-  mixing: 'Mixing',
-  ready: 'Ready',
+  saving: 'Saving',
+  ready: 'Saved',
 }
 
 const STATUS_LINE_TEXT: Record<RoomState, string> = {
   idle: 'Idle',
   countdown: 'Counting down…',
   recording: 'Recording…',
-  uploading: 'Uploading…',
-  mixing: 'Mixing…',
-  ready: 'Ready to download',
+  saving: 'Saving recording…',
+  ready: 'Recording saved',
 }
 
 interface RoomViewProps {
@@ -54,6 +56,10 @@ export default function RoomView({
 
   const cdTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
   function clearAllTimers() {
     if (tickIntervalRef.current !== null) {
@@ -71,6 +77,18 @@ export default function RoomView({
     }, 1000)
   }
 
+  function startMediaRecorder() {
+    const stream = streamRef.current
+    if (!stream) return
+    chunksRef.current = []
+    const mr = new MediaRecorder(stream)
+    mr.ondataavailable = e => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
+    }
+    mr.start(100)
+    mediaRecorderRef.current = mr
+  }
+
   function runCountdown() {
     setRoomState('countdown')
     setCdNum('3')
@@ -85,6 +103,7 @@ export default function RoomView({
           const goT = setTimeout(() => {
             setRoomState('recording')
             startTick()
+            startMediaRecorder()
           }, 1000)
           cdTimeoutsRef.current.push(goT)
         }
@@ -93,20 +112,47 @@ export default function RoomView({
     })
   }
 
-  function runPostRecording() {
+  function stopAndSave() {
     clearAllTimers()
-    setRoomState('uploading')
-    const t1 = setTimeout(() => {
-      setRoomState('mixing')
-      const t2 = setTimeout(() => {
-        setRoomState('ready')
-      }, 1500)
-      cdTimeoutsRef.current.push(t2)
-    }, 1500)
-    cdTimeoutsRef.current.push(t1)
+    setRoomState('saving')
+
+    const mr = mediaRecorderRef.current
+    if (!mr) {
+      setRoomState('ready')
+      return
+    }
+
+    mr.onstop = async () => {
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+
+      try {
+        if (fileHandleRef.current) {
+          const writable = await fileHandleRef.current.createWritable()
+          await writable.write(blob)
+          await writable.close()
+        } else {
+          // Fallback for browsers without File System Access API
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = suggestedFilename()
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+      } catch (err) {
+        console.error('Failed to save recording:', err)
+      }
+
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+      mediaRecorderRef.current = null
+      setRoomState('ready')
+    }
+
+    mr.stop()
   }
 
-  function onRecClick() {
+  async function onRecClick() {
     if (roomState === 'idle' || roomState === 'ready') {
       clearAllTimers()
       if (roomState === 'ready') {
@@ -114,33 +160,63 @@ export default function RoomView({
         setRoomState('idle')
         return
       }
+
+      // Request microphone access
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        streamRef.current = stream
+      } catch {
+        alert('Microphone access is required to record. Please allow microphone access and try again.')
+        return
+      }
+
+      // Ask where to save (File System Access API — Chrome/Edge; others get auto-download)
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as Window & { showSaveFilePicker: (o?: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: suggestedFilename(),
+            types: [{ description: 'Audio Recording', accept: { 'audio/webm': ['.webm'] } }],
+          })
+          fileHandleRef.current = handle
+        } catch {
+          // User dismissed the save dialog — cancel recording
+          stream.getTracks().forEach(t => t.stop())
+          streamRef.current = null
+          return
+        }
+      } else {
+        fileHandleRef.current = null
+      }
+
       runCountdown()
     } else if (roomState === 'recording') {
-      runPostRecording()
+      stopAndSave()
     }
-    // no-op for countdown, uploading, mixing
+    // no-op for countdown, saving
   }
 
   useEffect(() => {
-    return () => clearAllTimers()
+    return () => {
+      clearAllTimers()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const outerClass = [
     'room',
     roomState === 'recording' ? 'recording' : '',
-    roomState === 'uploading' ? 'uploading' : '',
-    roomState === 'mixing' ? 'mixing' : '',
+    roomState === 'saving' ? 'uploading' : '',
     roomState === 'ready' ? 'ready' : '',
   ].filter(Boolean).join(' ')
 
   const recLabel =
     roomState === 'recording' ? 'Stop' :
-    roomState === 'uploading' ? 'Uploading' :
-    roomState === 'mixing' ? 'Mixing' :
+    roomState === 'saving' ? 'Saving' :
     'Start Recording'
 
-  const recDisabled = roomState === 'uploading' || roomState === 'mixing' || roomState === 'countdown'
+  const recDisabled = roomState === 'saving' || roomState === 'countdown'
 
   const panelClass = roomState === 'recording' ? 'panel live' : 'panel muted'
 
@@ -168,7 +244,7 @@ export default function RoomView({
         </div>
 
         <div className="pillar">
-          {(roomState === 'uploading' || roomState === 'mixing') ? (
+          {roomState === 'saving' ? (
             <Skeleton width={100} height={40} className="timer-skel" />
           ) : (
             <div className="timer">{formatTime(seconds)}</div>
